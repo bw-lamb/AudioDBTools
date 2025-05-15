@@ -1,0 +1,195 @@
+using TagLib;
+using System;
+using System.Collections.Generic;
+using System.Linq;
+
+public class DatabaseGenerator
+{
+    private static readonly string[] ACCEPTED_EXTENSIONS = ["mp3", "m4a", "flac"];
+    private static readonly string PLAYLIST_EXTENSION = "m3u";
+    private DBAgent db;
+   
+    private DatabaseGenerator(string dbFilepath)
+    {
+        db = new DBAgent(dbFilepath);
+    }
+
+    public static DatabaseGenerator GetWithInit(string dbFilepath)
+    {
+        DatabaseGenerator dbg = new DatabaseGenerator(dbFilepath);
+        dbg.db.InitDB();
+        return dbg;
+    }
+
+    public static DatabaseGenerator GetWithoutInit(string dbFilepath)
+    {
+        DatabaseGenerator dbg = new DatabaseGenerator(dbFilepath);
+        return dbg;
+    }
+
+    private static bool IsSongFile(string filename)
+    {
+        string[] split = filename.Split('.');
+        string extn = split[split.Length - 1];
+
+        if(split.Length != 1 && split[0] != "" && ACCEPTED_EXTENSIONS.Contains(extn.ToLower()))
+        {
+            return true;
+        }
+
+        return false;
+    }
+
+    private static bool IsPlaylistFile(string filename)
+    {
+        string[] split = filename.Split('.');
+        string extn = split[split.Length - 1];
+
+        if(split.Length != 1 && split[0] != "" && extn.ToLower().Equals(PLAYLIST_EXTENSION))
+        {
+            return true;
+        }
+
+        return false;
+    }
+
+    public void ProcessSong(string filename)
+    {
+        TagLib.File fileHandle = TagLib.File.Create(filename);
+
+        string title = fileHandle.Tag.Title;
+        string[] artists = fileHandle.Tag.AlbumArtists;
+        string album = fileHandle.Tag.Album;
+        TimeSpan length = fileHandle.Properties.Duration;
+        uint year = fileHandle.Tag.Year;
+        uint diskno = fileHandle.Tag.Disc;
+        uint totalDisks = fileHandle.Tag.DiscCount;
+        uint totalTracks = fileHandle.Tag.TrackCount;
+        uint trackno = fileHandle.Tag.Track;
+        string[] genres = fileHandle.Tag.Genres;
+
+        // SANITIZATION
+        if(artists.Length == 0)
+            artists = ["Unknown"];
+
+        if(album.Equals(""))
+            album = "Unknown";
+
+        if(genres.Length == 0)
+            genres = ["Unknown"];
+
+        if(totalDisks == 0)
+            totalDisks = 1;
+
+        if(diskno == 0)
+            diskno = 1;
+
+        // ARTISTS
+        string allArtists = String.Join(", ", artists);
+        if(db.HasArtist(allArtists))
+        {
+            Console.WriteLine("[INFO] Artist {0} already in DB. Skipping", allArtists);
+        }
+        else
+        {   
+            Console.WriteLine("[INFO] New artist {0} added to DB.", allArtists);
+            db.AddArtist(allArtists);
+        }   
+
+        // GENRES
+        string allGenres = String.Join(", ", genres);
+        if(db.HasGenre(allGenres))
+        {
+            Console.WriteLine("[INFO] Genre {0} already in DB. Skipping", allGenres);
+        }
+        else
+        {   
+            Console.WriteLine("[INFO] New genre {0} added to DB.", allGenres);
+            db.AddGenre(allGenres);
+        }
+
+        // ALBUMS
+        if(db.HasAlbum(album, allArtists, year))
+        {
+            Console.WriteLine("[INFO] Album {0} already in DB. skipping.", album);
+        }
+        else
+        {
+            Console.WriteLine("[INFO] New album {0} added to DB.", album);
+            db.AddAlbum(album, allArtists, year, totalDisks, totalTracks);
+        }
+
+        string absolutePath = System.IO.Path.GetFullPath(filename);
+
+        // SONGS
+        if(db.HasSong(title, allArtists, album, year))
+        {
+            
+            if(!db.HasSong(absolutePath))
+            {
+                Console.WriteLine("[WARN] Song {0} with same details already in DB but from another file. Adding duplicate.", title);
+                db.AddSong(title, allArtists, album, allGenres, length, diskno, trackno, year, absolutePath);
+            }   
+            else 
+            {
+                Console.WriteLine("[INFO] Song {0} (by {1}) already in DB. skipping.", title, allArtists);
+            }
+        }
+        else
+        {
+            Console.WriteLine("[INFO] New song {0} (by {1}) added to DB.", title, allArtists);
+            
+            db.AddSong(title, allArtists, album, allGenres, length, diskno, trackno, year, absolutePath);
+        }
+    }
+
+    public void ProcessPlaylist(string filename)
+    {
+        db.AddPlaylist(filename);
+    }
+
+    public void ProcessFiles(string[] files)
+    {
+        List<string> playlists = new List<string>();
+
+        foreach(string file in files)
+        {
+            if(IsSongFile(file))
+                ProcessSong(file);
+            else if(IsPlaylistFile(file))
+                playlists.Add(file);
+            else
+                Console.WriteLine("[ERR ] Unkown file {0}", file);
+        }
+
+        // do all playlists after all songs are dealt with
+        foreach(string playlist in playlists)
+        {
+            ProcessPlaylist(playlist);
+        }
+    }
+
+    public void RemoveFiles(string[] files)
+    {
+        foreach(string file in files)
+        {
+            if(IsSongFile(file))
+            {
+                Console.WriteLine("[INFO] Removing song {0} from DB.", file);
+                db.RemoveSong(file);
+            }
+            else if(IsPlaylistFile(file))
+            {
+                Console.WriteLine("[INFO] Removing playlist {0}.", file);
+                db.RemovePlaylist(file);
+            }
+            else
+                Console.WriteLine("[ERR ] Unkown file {0}", file);
+        }
+    }
+
+    public void PruneDB()
+    {
+        
+    }
+}
