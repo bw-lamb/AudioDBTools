@@ -1,4 +1,3 @@
-using TagLib;
 using System;
 using System.Collections.Generic;
 using System.Linq;
@@ -7,7 +6,7 @@ public class DatabaseGenerator
 {
     private static readonly string[] ACCEPTED_EXTENSIONS = ["mp3", "m4a", "flac"];
     private static readonly string PLAYLIST_EXTENSION = "m3u";
-    private DBAgent db;
+    private readonly DBAgent db;
    
     private DatabaseGenerator(string dbFilepath)
     {
@@ -30,9 +29,9 @@ public class DatabaseGenerator
     private static bool IsSongFile(string filename)
     {
         string[] split = filename.Split('.');
-        string extn = split[split.Length - 1];
+        string extn = split[^1];
 
-        if(split.Length != 1 && split[0] != "" && ACCEPTED_EXTENSIONS.Contains(extn.ToLower()))
+        if((split.Length != 1 || split[0] != "") && ACCEPTED_EXTENSIONS.Contains(extn.ToLower()))
         {
             return true;
         }
@@ -43,9 +42,9 @@ public class DatabaseGenerator
     private static bool IsPlaylistFile(string filename)
     {
         string[] split = filename.Split('.');
-        string extn = split[split.Length - 1];
+        string extn = split[^1];
 
-        if(split.Length != 1 && split[0] != "" && extn.ToLower().Equals(PLAYLIST_EXTENSION))
+        if ((split.Length != 1 || split[0] != "") && extn.ToLower().Equals(PLAYLIST_EXTENSION))
         {
             return true;
         }
@@ -58,7 +57,7 @@ public class DatabaseGenerator
         TagLib.File fileHandle = TagLib.File.Create(filename);
 
         string title = fileHandle.Tag.Title;
-        string[] artists = fileHandle.Tag.AlbumArtists;
+        string[] artists = fileHandle.Tag.Performers;
         string album = fileHandle.Tag.Album;
         TimeSpan length = fileHandle.Properties.Duration;
         uint year = fileHandle.Tag.Year;
