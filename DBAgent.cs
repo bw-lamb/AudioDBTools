@@ -1,5 +1,10 @@
 using System;
+using System.Collections.Generic;
 using System.Data.SQLite;
+using System.Dynamic;
+using System.Runtime.InteropServices;
+using System.Security.Cryptography;
+using System.Xml.Linq;
 
 class DBAgent
 {
@@ -36,30 +41,42 @@ CREATE TABLE albums (
     album_name  VARCHAR(75),
     album_year  INTEGER,
     album_disks INTEGER,
-    album_tracks INTEGER,
-
-    FOREIGN KEY (artist_id) REFERENCES artists(artist_id)
+    album_tracks INTEGER
 );
 
 CREATE TABLE songs (
     song_id     INTEGER     PRIMARY KEY NOT NULL,
-    artist_id   INTEGER,
     album_id    INTEGER,
-    genre_id    INTEGER,
     song_name   VARCHAR(50),
     song_length INTEGER,
     song_diskno INTEGER,
     song_trackno INTEGER,
     song_filepath    TEXT,
 
-    FOREIGN KEY (artist_id) REFERENCES artists(artist_id),
-    FOREIGN KEY (album_id) REFERENCES albums(album_id),
-    FOREIGN KEY (genre_id) REFERENCES genres(genre_id)
+    FOREIGN KEY (album_id) REFERENCES albums(album_id)
 );
 
 CREATE TABLE playlists (
     playlist_id INTEGER PRIMARY KEY NOT NULL,
     playlist_name TEXT NOT NULL
+);
+
+CREATE TABLE artist_relations (
+    artist_id INTEGER NOT NULL,
+    song_id INTEGER NOT NULL,
+    
+    PRIMARY KEY (artist_id, song_id),
+    FOREIGN KEY (artist_id) REFERENCES artists(artist_id),
+    FOREIGN KEY (song_id) REFERENCES songs(song_id)
+);
+
+CREATE TABLE genre_relations (
+    genre_id INTEGER NOT NULL,
+    song_id INTEGER NOT NULL,
+    
+    PRIMARY KEY (genre_id, song_id),
+    FOREIGN KEY (genre_id) REFERENCES genres(genre_id),
+    FOREIGN KEY (song_id) REFERENCES songs(song_id)
 );
 
 CREATE TABLE playlist_relations (
@@ -99,7 +116,7 @@ CREATE TABLE playlist_relations (
         cmd.Parameters.AddWithValue("$name", artist);
 
         SQLiteDataReader result = cmd.ExecuteReader();
-        if(result.HasRows)
+        if (result.HasRows)
         {
             result.Read();
             return (uint)result.GetInt32(0);
@@ -110,12 +127,52 @@ CREATE TABLE playlist_relations (
         }
     }
 
+    public string? GetArtistName(uint artistId)
+    {
+        SQLiteCommand cmd = conn.CreateCommand();
+        cmd.CommandText = "SELECT artist_name FROM artists WHERE artist_id = $aid;";
+        cmd.Parameters.AddWithValue("$aid", artistId);
+
+        var result = cmd.ExecuteReader();
+        if (result.HasRows)
+        {
+            result.Read();
+            return result.GetString(0);
+        }
+        return null;
+    }
+
+    public List<uint> UnusedArtists()
+    {
+        SQLiteCommand cmd = conn.CreateCommand();
+        cmd.CommandText = "SELECT artist_id FROM artists WHERE artist_id NOT IN (SELECT DISTINCT artist_id FROM artist_relations);";
+
+        List<uint> unused = new List<uint>();
+
+        var result = cmd.ExecuteReader();
+        while (result.HasRows)
+        {
+            if(result.Read())
+                unused.Add((uint)result.GetInt32(0));
+        }
+
+        return unused;
+    }
+
      public void AddArtist(string artist)
     {
         SQLiteCommand cmd = conn.CreateCommand();
-        cmd.CommandText  = "INSERT INTO artists (artist_name) VALUES ($value);";
-        
+        cmd.CommandText = "INSERT INTO artists (artist_name) VALUES ($value);";
+
         cmd.Parameters.AddWithValue("$value", artist);
+        cmd.ExecuteNonQuery();
+    }
+    
+    public void RemoveArtist(uint artistid)
+    {
+        SQLiteCommand cmd = conn.CreateCommand();
+        cmd.CommandText = "DELETE FROM artists WHERE artist_id = $aid;";
+        cmd.Parameters.AddWithValue("$aid", artistid);
         cmd.ExecuteNonQuery();
     }
 
@@ -130,7 +187,7 @@ CREATE TABLE playlist_relations (
         cmd.Parameters.AddWithValue("$year", year);
 
         var result = cmd.ExecuteReader();
-        if(result.HasRows)
+        if (result.HasRows)
             return true;
         return false;
     }
@@ -154,6 +211,38 @@ CREATE TABLE playlist_relations (
         return 0;
     }
 
+    public string? GetAlbumName(uint albumId)
+    {
+        SQLiteCommand cmd = conn.CreateCommand();
+        cmd.CommandText = "SELECT album_name FROM albums WHERE album_id = $aid;";
+        cmd.Parameters.AddWithValue("$aid", albumId);
+
+        var result = cmd.ExecuteReader();
+        if (result.HasRows)
+        {
+            result.Read();
+            return result.GetString(0);
+        }
+        return null;
+    }
+
+    public List<uint> UnusedAlbums()
+    {
+        SQLiteCommand cmd = conn.CreateCommand();
+        cmd.CommandText = "SELECT album_id FROM albums WHERE album_id NOT IN (SELECT DISTINCT album_id FROM songs);";
+
+        List<uint> unused = new List<uint>();
+
+        var result = cmd.ExecuteReader();
+        while (result.HasRows)
+        {
+            if(result.Read())
+                unused.Add((uint)result.GetInt32(0));
+        }
+
+        return unused;
+    }
+
     public void AddAlbum(string album, string artist, uint year, uint numDisks, uint numTracks)
     {
         uint artistId = GetArtistId(artist);
@@ -169,6 +258,14 @@ CREATE TABLE playlist_relations (
         cmd.ExecuteNonQuery();
     }
 
+    public void RemoveAlbum(uint albumId)
+    {
+        SQLiteCommand cmd = conn.CreateCommand();
+        cmd.CommandText = "DELETE FROM albums WHERE album_id = $aid;";
+        cmd.Parameters.AddWithValue("$aid", albumId);
+        cmd.ExecuteNonQuery();
+    }
+    
     public bool HasGenre(string genre)
     {
         SQLiteCommand cmd = conn.CreateCommand();
@@ -176,7 +273,7 @@ CREATE TABLE playlist_relations (
         cmd.Parameters.AddWithValue("$name", genre);
 
         SQLiteDataReader result = cmd.ExecuteReader();
-        if(result.HasRows)
+        if (result.HasRows)
         {
             return true;
         }
@@ -201,43 +298,65 @@ CREATE TABLE playlist_relations (
             return 0;
     }
 
+    public string? GetGenreName(uint genreId)
+    {
+        SQLiteCommand cmd = conn.CreateCommand();
+        cmd.CommandText = "SELECT genre_name FROM genres WHERE genre_id = $gid;";
+        cmd.Parameters.AddWithValue("$gid", genreId);
+
+        var result = cmd.ExecuteReader();
+        if (result.HasRows)
+        {
+            result.Read();
+            return result.GetString(0);
+        }
+        return null;
+    }
+
+    public List<uint> UnusedGenres()
+    {
+        SQLiteCommand cmd = conn.CreateCommand();
+        cmd.CommandText = "SELECT genre_id FROM genres WHERE genre_id NOT IN (SELECT DISTINCT genre_id FROM genre_relations);";
+
+        List<uint> unused = new List<uint>();
+
+        var result = cmd.ExecuteReader();
+        while (result.HasRows)
+        {
+            if(result.Read())
+                unused.Add((uint)result.GetInt32(0));
+        }
+
+        return unused;
+    }
     public void AddGenre(string genre)
     {
         SQLiteCommand cmd = conn.CreateCommand();
         string query = "INSERT INTO genres (genre_name) VALUES ($value);";
         cmd.CommandText = query;
-        
+
         cmd.Parameters.AddWithValue("$value", genre);
         cmd.ExecuteNonQuery();
     }
 
-    public bool HasSong(string title, string artist, string album, uint year)
+    public void RemoveGenre(uint genreId)
     {
-        uint artistId = GetArtistId(artist);
-        uint albumId = GetAlbumId(album, artist, year);
-
         SQLiteCommand cmd = conn.CreateCommand();
-        cmd.CommandText = "SELECT * FROM songs WHERE song_name = $name AND artist_id = $artist_id AND album_id = $album_id;";
-        cmd.Parameters.AddWithValue("$name", title);
-        cmd.Parameters.AddWithValue("$artist_id", artistId);
-        cmd.Parameters.AddWithValue("$album_id", albumId);
-
-        var result = cmd.ExecuteReader();
-        if(result.HasRows)
-            return true;
-        return false;
+        cmd.CommandText = "DELETE FROM genres WHERE genre_id = $gid;";
+        cmd.Parameters.AddWithValue("$gid", genreId);
+        cmd.ExecuteNonQuery();
     }
 
-    public bool HasSong(string filename)
+    public bool HasSong(string filepath)
     {
         SQLiteCommand cmd = conn.CreateCommand();
         cmd.CommandText = "SELECT * FROM songs WHERE song_filepath = $fp;";
-        cmd.Parameters.AddWithValue("$fp", filename);
+        cmd.Parameters.AddWithValue("$fp", filepath);
 
         var result = cmd.ExecuteReader();
-        if(result.HasRows)
+        if (result.HasRows)
             return true;
-        return false;        
+        return false;
     }
 
     public uint GetSongId(string filepath)
@@ -257,32 +376,68 @@ CREATE TABLE playlist_relations (
             return 0;
     }
 
-    public void AddSong(string title, string artist, string album, string genre, TimeSpan length, 
+    public void AddSong(string title, string[] artists, string album, string albumArtist, string[] genres, TimeSpan length,
                         uint numDisks, uint numTracks, uint year, string filepath)
     {
-        uint artistId = GetArtistId(artist);
-        uint albumId = GetAlbumId(album, artist, year);
-        uint genreId = GetGenreId(genre);
+        uint[] artistIds = new uint[artists.Length];
+        for (int i = 0; i < artists.Length; i++)
+        {
+            artistIds[i] = GetArtistId(artists[i]);
+        }
+
+        uint[] genreIds = new uint[genres.Length];
+        for (int i = 0; i < genres.Length; i++)
+        {
+            genreIds[i] = GetGenreId(genres[i]);
+        }
+
+        uint albumId = GetAlbumId(album, albumArtist, year);
 
         SQLiteCommand cmd = conn.CreateCommand();
-        cmd.CommandText = 
-        "INSERT INTO songs (song_name, artist_id, album_id, genre_id, song_length, song_diskno, song_trackno, song_filepath) VALUES ($title, $artist_id, $album_id, $genre_id, $song_length, $song_diskno, $song_trackno, $fp);";
+        cmd.CommandText =
+        "INSERT INTO songs (song_name, album_id, song_length, song_diskno, song_trackno, song_filepath) VALUES ($title, $album_id, $song_length, $song_diskno, $song_trackno, $fp);";
         cmd.Parameters.AddWithValue("$title", title);
-        cmd.Parameters.AddWithValue("$artist_id", artistId);
         cmd.Parameters.AddWithValue("$album_id", albumId);
-        cmd.Parameters.AddWithValue("$genre_id", genreId);
         cmd.Parameters.AddWithValue("$song_length", length.ToString());
         cmd.Parameters.AddWithValue("$song_diskno", numDisks);
         cmd.Parameters.AddWithValue("$song_trackno", numTracks);
         cmd.Parameters.AddWithValue("$fp", filepath);
 
         cmd.ExecuteNonQuery();
+
+        uint songId = GetSongId(filepath);
+
+        foreach (uint aId in artistIds)
+        {
+            cmd = conn.CreateCommand();
+            cmd.CommandText = "INSERT INTO artist_relations (artist_id, song_id) VALUES ($aid, $sid);";
+            cmd.Parameters.AddWithValue("$aid", aId);
+            cmd.Parameters.AddWithValue("$sid", songId);
+            cmd.ExecuteNonQuery();
+        }
+
+        foreach (uint gId in genreIds)
+        {
+            cmd = conn.CreateCommand();
+            cmd.CommandText = "INSERT INTO genre_relations (genre_id, song_id) VALUES ($gid, $sid);";
+            cmd.Parameters.AddWithValue("$gid", gId);
+            cmd.Parameters.AddWithValue("sid", songId);
+            cmd.ExecuteNonQuery();
+        }
     }
 
     public void RemoveSong(string filepath)
     {
         SQLiteCommand cmd = conn.CreateCommand();
         string absolutePath = System.IO.Path.GetFullPath(filepath);
+
+        cmd.CommandText = "DELETE FROM artist_relations WHERE song_id = $sid;";
+        cmd.Parameters.AddWithValue("$sid", GetSongId(absolutePath));
+        cmd.ExecuteNonQuery();
+
+        cmd.CommandText = "DELETE FROM genre_relations WHERE song_id = $sid;";
+        cmd.Parameters.AddWithValue("$sid", GetSongId(absolutePath));
+        cmd.ExecuteNonQuery();
 
         cmd.CommandText = "DELETE FROM playlist_relations WHERE song_id = $sid;";
         cmd.Parameters.AddWithValue("$sid", GetSongId(absolutePath));

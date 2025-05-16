@@ -59,6 +59,7 @@ public class DatabaseGenerator
         string title = fileHandle.Tag.Title;
         string[] artists = fileHandle.Tag.Performers;
         string album = fileHandle.Tag.Album;
+        string albumArtist = String.Join(", ", fileHandle.Tag.AlbumArtists);
         TimeSpan length = fileHandle.Properties.Duration;
         uint year = fileHandle.Tag.Year;
         uint diskno = fileHandle.Tag.Disc;
@@ -84,61 +85,63 @@ public class DatabaseGenerator
             diskno = 1;
 
         // ARTISTS
-        string allArtists = String.Join(", ", artists);
-        if(db.HasArtist(allArtists))
+        foreach (string artist in artists)
         {
-            Console.WriteLine("[INFO] Artist {0} already in DB. Skipping", allArtists);
+            if (db.HasArtist(artist))
+            {
+                Console.WriteLine("[INFO] Artist {0} already in DB. Skipping", artist);
+            }
+            else
+            {
+                Console.WriteLine("[INFO] New artist {0} added to DB.", artist);
+                db.AddArtist(artist);
+            }
         }
-        else
-        {   
-            Console.WriteLine("[INFO] New artist {0} added to DB.", allArtists);
-            db.AddArtist(allArtists);
-        }   
-
         // GENRES
-        string allGenres = String.Join(", ", genres);
-        if(db.HasGenre(allGenres))
+        foreach (string genre in genres)
         {
-            Console.WriteLine("[INFO] Genre {0} already in DB. Skipping", allGenres);
+            if (db.HasGenre(genre))
+            {
+                Console.WriteLine("[INFO] Genre {0} already in DB. Skipping", genre);
+            }
+            else
+            {
+                Console.WriteLine("[INFO] New genre {0} added to DB.", genre);
+                db.AddGenre(genre);
+            }
         }
-        else
-        {   
-            Console.WriteLine("[INFO] New genre {0} added to DB.", allGenres);
-            db.AddGenre(allGenres);
-        }
-
         // ALBUMS
-        if(db.HasAlbum(album, allArtists, year))
+        if(db.HasAlbum(album, albumArtist, year))
         {
             Console.WriteLine("[INFO] Album {0} already in DB. skipping.", album);
         }
         else
         {
             Console.WriteLine("[INFO] New album {0} added to DB.", album);
-            db.AddAlbum(album, allArtists, year, totalDisks, totalTracks);
+            db.AddAlbum(album, albumArtist, year, totalDisks, totalTracks);
         }
 
         string absolutePath = System.IO.Path.GetFullPath(filename);
 
         // SONGS
-        if(db.HasSong(title, allArtists, album, year))
+        if(db.HasSong(filename))
         {
             
             if(!db.HasSong(absolutePath))
             {
                 Console.WriteLine("[WARN] Song {0} with same details already in DB but from another file. Adding duplicate.", title);
-                db.AddSong(title, allArtists, album, allGenres, length, diskno, trackno, year, absolutePath);
+                db.AddSong(title, artists, album, albumArtist, genres, length, diskno, trackno, year, absolutePath);
             }   
             else 
             {
-                Console.WriteLine("[INFO] Song {0} (by {1}) already in DB. skipping.", title, allArtists);
+                Console.WriteLine("[INFO] Song {0} ({1}) already in DB. skipping.", title, filename);
             }
         }
         else
         {
-            Console.WriteLine("[INFO] New song {0} (by {1}) added to DB.", title, allArtists);
+            Console.WriteLine("[INFO] New song {0} ({1}) added to DB.", title, filename);
             
-            db.AddSong(title, allArtists, album, allGenres, length, diskno, trackno, year, absolutePath);
+            db.AddSong(title, artists, album, albumArtist, genres, length, diskno, trackno, year, absolutePath);
         }
     }
 
@@ -189,6 +192,25 @@ public class DatabaseGenerator
 
     public void PruneDB()
     {
-        
+        List<uint> unusedAlbums = db.UnusedAlbums();
+        List<uint> unusedArtists = db.UnusedArtists();
+        List<uint> unusedGenres = db.UnusedGenres();
+
+        foreach (uint albumId in unusedAlbums)
+        {
+            Console.WriteLine("[INFO] Pruning unused album {0} from DB.", db.GetAlbumName(albumId));
+            db.RemoveAlbum(albumId);
+        }
+        foreach (uint artistId in unusedArtists)
+        {
+            Console.WriteLine("[INFO] Pruning unused artist {0} from DB.", db.GetArtistName(artistId));
+            db.RemoveAlbum(artistId);
+        }
+
+        foreach (uint genreId in unusedGenres)
+        {
+            Console.WriteLine("[INFO] Pruning unused genre {0} from DB.", db.GetGenreName(genreId));
+            db.RemoveAlbum(genreId);
+        }
     }
 }
