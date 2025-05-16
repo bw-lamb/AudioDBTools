@@ -204,13 +204,13 @@ public class DatabaseGenerator
         foreach (uint artistId in unusedArtists)
         {
             Console.WriteLine("[INFO] Pruning unused artist {0} from DB.", db.GetArtistName(artistId));
-            db.RemoveAlbum(artistId);
+            db.RemoveArtist(artistId);
         }
 
         foreach (uint genreId in unusedGenres)
         {
             Console.WriteLine("[INFO] Pruning unused genre {0} from DB.", db.GetGenreName(genreId));
-            db.RemoveAlbum(genreId);
+            db.RemoveGenre(genreId);
         }
     }
 }
