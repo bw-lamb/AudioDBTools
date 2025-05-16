@@ -1,11 +1,6 @@
 using System;
 using System.Collections.Generic;
 using System.Data.SQLite;
-using System.Dynamic;
-using System.Runtime.InteropServices;
-using System.Security.Cryptography;
-using System.Xml.Linq;
-
 class DBAgent
 {
     private SQLiteConnection conn;
