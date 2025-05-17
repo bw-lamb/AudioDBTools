@@ -18,7 +18,8 @@ class Program
 
         Console.WriteLine("\nFlags:");
         Console.WriteLine("\t-o [output_file] | --output [output_file]\tWrite database to output_file");
-        Console.WriteLine("\t-p | --prune \t\t\t\t\tRun prune after removing files.");
+        Console.WriteLine("\t-p | --prune\t\t\t\t\tRun prune after removing files.");
+        Console.WriteLine("\t-q | --quiet\t\t\t\t\tSuppress output");
 
 
         Console.WriteLine("For help with a specific function, add the --help/-h flag after [command]");
@@ -40,7 +41,7 @@ class Program
         } 
         catch(IOException ex)
         {
-            Console.WriteLine(ex.Message);
+            Logger.LogCritical(ex.Message);
         }
     }
 
@@ -60,11 +61,11 @@ class Program
         }
         catch (FileNotFoundException ex)
         {
-            Console.WriteLine(ex.Message);
+            Logger.LogCritical(ex.Message);
         }
         catch (IOException ex)
         {
-            Console.WriteLine(ex.Message);
+            Logger.LogCritical(ex.Message);
         }
     }
 
@@ -75,20 +76,20 @@ class Program
         Console.WriteLine("Accepted audio files include flac, mp3, & m4a files. m3u files are used to describe playlists.");
     }
 
-    private static void Remove(string[] files)
+    private static void Remove(string[] files, bool prune)
     {
         try
         {
             var dbg = DatabaseGenerator.GetWithoutInit(dbLocation);
-            dbg.RemoveFiles(files);
+            dbg.RemoveFiles(files, prune);
         }
         catch (FileNotFoundException ex)
         {
-            Console.WriteLine(ex.Message);
+            Logger.LogCritical(ex.Message);
         }
         catch (IOException ex)
         {
-            Console.WriteLine(ex.Message);
+            Logger.LogCritical(ex.Message);
         }
     }
 
@@ -106,11 +107,11 @@ class Program
         }
         catch (FileNotFoundException ex)
         {
-            Console.WriteLine(ex.Message);
+            Logger.LogCritical(ex.Message);
         }
         catch (IOException ex)
         {
-            Console.WriteLine(ex.Message);
+            Logger.LogCritical(ex.Message);
         }
     }
 
@@ -149,7 +150,7 @@ class Program
                 case "--output" or "-o":
                     if (i + 1 == args.Length)
                     {
-                        Console.WriteLine("[ERR ] Flag {0} was last given argument, expected destination.", args[i]);
+                        Logger.LogError(string.Format("Flag {0} was last given argument, expected destination.", args[i]));
                         return null;
                     }
                     else
@@ -160,14 +161,17 @@ class Program
                     break;
                 case "--prune" or "-p":
                     if (!command.Equals("remove"))
-                        Console.WriteLine("[WARN] Pruning flag given, but we are not removing anything. Ignoring");
+                        Logger.LogWarn("Pruning flag given, but we are not removing anything. Ignoring");
                     else
                         flagPruneAfterRemoving = true;
+                    break;
+                case "--quiet" or "-q":
+                    Logger.SetSilent(true);
                     break;
                 default:
                     if (args[i].StartsWith('-'))
                     {
-                        Console.WriteLine("[ERR ] Unknown flag {0} given.", args[i]);
+                        Logger.LogError(string.Format("Unknown flag {0} given.", args[i]));
                         return null;
                     }
                     else
@@ -194,6 +198,7 @@ class Program
 
         if (files == null) // We've seen an error in parsing flags
         {
+            Logger.Stop();
             return;
         }
 
@@ -202,7 +207,7 @@ class Program
                 case "init":
                     if (files.Length == 0)
                     {
-                        Console.WriteLine("[ERR ] No audio files provided.");
+                        Logger.LogError("No audio files provided.");
                         break;
                     }
                     Init(files);
@@ -210,7 +215,7 @@ class Program
                 case "add":
                     if (files.Length == 0)
                     {
-                        Console.WriteLine("[ERR ] No audio files provided.");
+                        Logger.LogError("No audio files provided.");
                         break;
                     }
                     Add(files);
@@ -218,22 +223,21 @@ class Program
                 case "remove":
                     if (files.Length == 0)
                     {
-                        Console.WriteLine("[ERR ] No audio files provided.");
+                        Logger.LogError("No audio files provided.");
                         break;
                     }
-                    Remove(files);
-                    if (flagPruneAfterRemoving)
-                        Prune();
+                    Remove(files, flagPruneAfterRemoving);
                     break;
                 case "prune":
                     if (files.Length != 0)
-                        Console.WriteLine("[WARN] Files given while we are pruning. They are being ignored. Use \"remove\" to delete files");
+                        Logger.LogWarn("Files given while we are pruning. They are being ignored. Use \"remove\" to delete files");
                     Prune();
                     break;
                 default:
-                    Console.WriteLine("Unknown function \"{0}\"", command);
+                    Logger.LogError(string.Format("Unknown function \"{0}\"", command));
                     Usage();
                     break;
             }
+            Logger.Stop();
     }   
 }

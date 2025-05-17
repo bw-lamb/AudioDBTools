@@ -1,18 +1,28 @@
 using System;
-using System.Buffers.Binary;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
+using System.Text;
 
 public class DatabaseGenerator
 {
     private static readonly string[] ACCEPTED_EXTENSIONS = ["mp3", "m4a", "flac"];
     private static readonly string PLAYLIST_EXTENSION = "m3u";
     private readonly DBAgent db;
+    private uint songsAffected;
+    private uint artistsAffected;
+    private uint albumsAffected;
+    private uint genresAffected;
+    private uint playlistsAffected;
    
     private DatabaseGenerator(string dbFilepath)
     {
         db = new DBAgent(dbFilepath);
+        songsAffected = 0;
+        artistsAffected = 0;
+        albumsAffected = 0;
+        genresAffected = 0;
+        playlistsAffected = 0;
     }
 
     // Create and get a handle on a database.
@@ -23,11 +33,11 @@ public class DatabaseGenerator
             string msg;
             if (IsDatabase(dbFilepath))
             {
-                msg = string.Format("[ERR ] Database already present at {0}. Use the \"add\" command instead.", dbFilepath);
+                msg = string.Format("Database already present at {0}. Use the \"add\" command instead.", dbFilepath);
             }
             else
             {
-                msg = string.Format("[ERR ] A file already present at {0}, and it is not a database.", dbFilepath);
+                msg = string.Format("A file already present at {0}, and it is not a database.", dbFilepath);
             }
             throw new IOException(msg);
         }
@@ -41,12 +51,12 @@ public class DatabaseGenerator
     {
         if (!File.Exists(dbFilepath))
         {
-            throw new FileNotFoundException(string.Format("[ERR ] File {0} does not exist. Did you mean to use \"init\" instead?", dbFilepath));
+            throw new FileNotFoundException(string.Format("File {0} does not exist. Did you mean to use \"init\" instead?", dbFilepath));
         }
 
         if (!IsDatabase(dbFilepath))
         {
-            throw new IOException(string.Format("[ERR ] File {0} is not an SQLite 3 database.", dbFilepath));
+            throw new IOException(string.Format("File {0} is not an SQLite 3 database.", dbFilepath));
         }
 
         DatabaseGenerator dbg = new DatabaseGenerator(dbFilepath);
@@ -139,12 +149,13 @@ public class DatabaseGenerator
         {
             if (db.HasArtist(artist))
             {
-                Console.WriteLine("[INFO] Artist {0} already in DB. Skipping", artist);
+                Logger.LogInfo(string.Format("Artist {0} already in DB. Skipping", artist));
             }
             else
             {
-                Console.WriteLine("[INFO] New artist {0} added to DB.", artist);
+                Logger.LogInfo(string.Format("New artist {0} added to DB.", artist));
                 db.AddArtist(artist);
+                artistsAffected++;
             }
         }
         // GENRES
@@ -152,12 +163,13 @@ public class DatabaseGenerator
         {
             if (db.HasGenre(genre))
             {
-                Console.WriteLine("[INFO] Genre {0} already in DB. Skipping", genre);
+                Logger.LogInfo(string.Format("Genre {0} already in DB. Skipping", genre));
             }
             else
             {
-                Console.WriteLine("[INFO] New genre {0} added to DB.", genre);
+                Logger.LogInfo(string.Format("New genre {0} added to DB.", genre));
                 db.AddGenre(genre);
+                genresAffected++;
             }
         }
 
@@ -166,12 +178,13 @@ public class DatabaseGenerator
         // ALBUMS
         if (db.HasAlbum(album, allAlbumArtists, year))
         {
-            Console.WriteLine("[INFO] Album {0} already in DB. skipping.", album);
+            Logger.LogInfo(string.Format("Album {0} already in DB. skipping.", album));
         }
         else
         {
-            Console.WriteLine("[INFO] New album {0} added to DB.", album);
+            Logger.LogInfo(string.Format("New album {0} added to DB.", album));
             db.AddAlbum(album, allAlbumArtists, year, totalDisks, totalTracks);
+            albumsAffected++;
         }
 
         string absolutePath = System.IO.Path.GetFullPath(filename);
@@ -179,13 +192,14 @@ public class DatabaseGenerator
         // SONGS
         if(db.HasSong(absolutePath))
         {
-            Console.WriteLine("[INFO] Song {0} ({1}) already in DB. skipping.", title, filename);
+            Logger.LogWarn(string.Format("Song {0} ({1}) already in DB. skipping.", title, filename));
         }
         else
         {
-            Console.WriteLine("[INFO] New song {0} ({1}) added to DB.", title, filename);
+            Logger.LogInfo(string.Format("New song {0} ({1}) added to DB.", title, filename));
             
             db.AddSong(title, artists, album, allAlbumArtists, genres, length, diskno, trackno, year, absolutePath);
+            songsAffected++;
         }
     }
 
@@ -194,10 +208,11 @@ public class DatabaseGenerator
         if(!db.HasPlaylist(filename))
         {
             db.AddPlaylist(filename);
+            playlistsAffected++;
         }
         else
         {
-            Console.WriteLine("[ERR ] Playlist from {0} already exists. Ignoring.", filename);
+            Logger.LogError(string.Format("Playlist from {0} already exists. Ignoring.", filename));
         }
     }
 
@@ -212,7 +227,7 @@ public class DatabaseGenerator
             else if(IsPlaylistFile(file))
                 playlists.Add(file);
             else
-                Console.WriteLine("[ERR ] Unkown file {0}", file);
+                Logger.LogError(string.Format("Unkown file {0}", file));    
         }
 
         // do all playlists after all songs are dealt with
@@ -220,25 +235,73 @@ public class DatabaseGenerator
         {
             ProcessPlaylist(playlist);
         }
+
+        StringBuilder sb = new();
+        
+        if(songsAffected != 0)
+        {
+            sb.Append($"Added {songsAffected} songs");
+        }
+
+        if(artistsAffected != 0)
+        {
+            sb.Append($"\nAdded {artistsAffected} artists");
+        }
+
+        if(albumsAffected != 0)
+        {
+            sb.Append($"\nAdded {albumsAffected} albums");
+        }
+
+        if(genresAffected != 0)
+        {
+            sb.Append($"\nAdded {genresAffected} genres");
+        }
+
+        if(playlistsAffected != 0)
+        {
+            sb.Append($"Added {playlistsAffected} playlists");
+        }
+
+        Logger.LogResult(sb.ToString());
     }
 
-    public void RemoveFiles(string[] files)
+    public void RemoveFiles(string[] files, bool prune)
     {
         foreach(string file in files)
         {
             if(IsSongFile(file))
             {
-                Console.WriteLine("[INFO] Removing song {0} from DB.", file);
+                Logger.LogInfo(string.Format("Removing song {0} from DB.", file));
                 db.RemoveSong(file);
+                songsAffected++;
             }
             else if(IsPlaylistFile(file))
             {
-                Console.WriteLine("[INFO] Removing playlist {0}.", file);
+                Logger.LogInfo(string.Format("Removing playlist {0} from DB.", file));
                 db.RemovePlaylist(file);
+                playlistsAffected++;
             }
             else
-                Console.WriteLine("[ERR ] Unkown file {0}", file);
+                Logger.LogError(string.Format("Unkown file {0}", file));
         }
+
+        if(prune)
+            PruneDB();
+        
+        StringBuilder sb = new();
+        
+        if(songsAffected != 0)
+        {
+            sb.Append($"Removed {songsAffected} songs");
+        }
+
+        if(playlistsAffected != 0)
+        {
+            sb.Append($"Removed {playlistsAffected} playlists");
+        }
+
+        Logger.LogResult(sb.ToString());
     }
 
     public void PruneDB()
@@ -249,19 +312,42 @@ public class DatabaseGenerator
 
         foreach (uint albumId in unusedAlbums)
         {
-            Console.WriteLine("[INFO] Pruning unused album {0} from DB.", db.GetAlbumName(albumId));
+            Logger.LogInfo(string.Format("Pruning unused album {0} from DB.", db.GetAlbumName(albumId)));
+
             db.RemoveAlbum(albumId);
+            albumsAffected++;
         }
         foreach (uint artistId in unusedArtists)
         {
-            Console.WriteLine("[INFO] Pruning unused artist {0} from DB.", db.GetArtistName(artistId));
+            Logger.LogInfo(string.Format("Pruning unused artist {0} from DB.", db.GetArtistName(artistId)));
             db.RemoveArtist(artistId);
+            artistsAffected++;
         }
 
         foreach (uint genreId in unusedGenres)
         {
-            Console.WriteLine("[INFO] Pruning unused genre {0} from DB.", db.GetGenreName(genreId));
+            Logger.LogInfo(string.Format("Pruning unused genre {0} from DB.", db.GetGenreName(genreId)));
             db.RemoveGenre(genreId);
+            genresAffected++;
         }
+
+        StringBuilder sb = new();
+        
+        if(artistsAffected != 0)
+        {
+            sb.Append($"Removed {artistsAffected} artists");
+        }
+
+        if(albumsAffected != 0)
+        {
+            sb.Append($"\nRemoved {albumsAffected} albums");
+        }
+
+        if(genresAffected != 0)
+        {
+            sb.Append($"\nRemoved {genresAffected} genres");
+        }
+
+        Logger.LogResult(sb.ToString());
     }
 }
