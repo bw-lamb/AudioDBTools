@@ -1,5 +1,7 @@
 using System;
+using System.Buffers.Binary;
 using System.Collections.Generic;
+using System.IO;
 using System.Linq;
 
 public class DatabaseGenerator
@@ -13,17 +15,62 @@ public class DatabaseGenerator
         db = new DBAgent(dbFilepath);
     }
 
+    // Create and get a handle on a database.
     public static DatabaseGenerator GetWithInit(string dbFilepath)
     {
+        if (File.Exists(dbFilepath))
+        {
+            string msg;
+            if (IsDatabase(dbFilepath))
+            {
+                msg = string.Format("[ERR ] Database already present at {0}. Use the \"add\" command instead.", dbFilepath);
+            }
+            else
+            {
+                msg = string.Format("[ERR ] A file already present at {0}, and it is not a database.", dbFilepath);
+            }
+            throw new IOException(msg);
+        }
         DatabaseGenerator dbg = new DatabaseGenerator(dbFilepath);
         dbg.db.InitDB();
         return dbg;
     }
 
+    // Get a handle on an existing database.
     public static DatabaseGenerator GetWithoutInit(string dbFilepath)
     {
+        if (!File.Exists(dbFilepath))
+        {
+            throw new FileNotFoundException(string.Format("[ERR ] File {0} does not exist. Did you mean to use \"init\" instead?", dbFilepath));
+        }
+
+        if (!IsDatabase(dbFilepath))
+        {
+            throw new IOException(string.Format("[ERR ] File {0} is not an SQLite 3 database.", dbFilepath));
+        }
+
         DatabaseGenerator dbg = new DatabaseGenerator(dbFilepath);
         return dbg;
+    }
+
+    // Checks if the file is a database. This only looks for the header all databases must have.
+    // See https://www.sqlite.org/fileformat.html 
+    private static bool IsDatabase(string filepath)
+    {
+        byte[] SQL_HEADER = [0x53, 0x51, 0x4c, 0x69, 0x74, 0x65, 0x20, 0x66, 0x6f, 0x72, 0x6d, 0x61, 0x74, 0x20, 0x33, 0x00];
+        byte[] header = new byte[16];
+
+        using (BinaryReader reader = new BinaryReader(new FileStream(filepath, FileMode.Open)))
+        {
+            reader.Read(header, 0, 16);
+        }
+
+        if (header.SequenceEqual(SQL_HEADER))
+        {
+            return true;
+        }
+
+        return false;
     }
 
     private static bool IsSongFile(string filename)
@@ -31,7 +78,7 @@ public class DatabaseGenerator
         string[] split = filename.Split('.');
         string extn = split[^1];
 
-        if((split.Length != 1 || split[0] != "") && ACCEPTED_EXTENSIONS.Contains(extn.ToLower()))
+        if ((split.Length != 1 || split[0] != "") && ACCEPTED_EXTENSIONS.Contains(extn.ToLower()))
         {
             return true;
         }
@@ -59,7 +106,7 @@ public class DatabaseGenerator
         string title = fileHandle.Tag.Title;
         string[] artists = fileHandle.Tag.Performers;
         string album = fileHandle.Tag.Album;
-        string albumArtist = String.Join(", ", fileHandle.Tag.AlbumArtists);
+        string[] albumArtists = fileHandle.Tag.AlbumArtists;
         TimeSpan length = fileHandle.Properties.Duration;
         uint year = fileHandle.Tag.Year;
         uint diskno = fileHandle.Tag.Disc;
@@ -75,7 +122,10 @@ public class DatabaseGenerator
         if(album.Equals(""))
             album = "Unknown";
 
-        if(genres.Length == 0)
+        if (albumArtists.Length == 0)
+            albumArtists = ["Unknown"];
+
+        if (genres.Length == 0)
             genres = ["Unknown"];
 
         if(totalDisks == 0)
@@ -110,27 +160,30 @@ public class DatabaseGenerator
                 db.AddGenre(genre);
             }
         }
+
+        string allAlbumArtists = String.Join(",", albumArtists);
+
         // ALBUMS
-        if(db.HasAlbum(album, albumArtist, year))
+        if (db.HasAlbum(album, allAlbumArtists, year))
         {
             Console.WriteLine("[INFO] Album {0} already in DB. skipping.", album);
         }
         else
         {
             Console.WriteLine("[INFO] New album {0} added to DB.", album);
-            db.AddAlbum(album, albumArtist, year, totalDisks, totalTracks);
+            db.AddAlbum(album, allAlbumArtists, year, totalDisks, totalTracks);
         }
 
         string absolutePath = System.IO.Path.GetFullPath(filename);
 
         // SONGS
-        if(db.HasSong(filename))
+        if(db.HasSong(absolutePath))
         {
             
             if(!db.HasSong(absolutePath))
             {
                 Console.WriteLine("[WARN] Song {0} with same details already in DB but from another file. Adding duplicate.", title);
-                db.AddSong(title, artists, album, albumArtist, genres, length, diskno, trackno, year, absolutePath);
+                db.AddSong(title, artists, album, allAlbumArtists, genres, length, diskno, trackno, year, absolutePath);
             }   
             else 
             {
@@ -141,7 +194,7 @@ public class DatabaseGenerator
         {
             Console.WriteLine("[INFO] New song {0} ({1}) added to DB.", title, filename);
             
-            db.AddSong(title, artists, album, albumArtist, genres, length, diskno, trackno, year, absolutePath);
+            db.AddSong(title, artists, album, allAlbumArtists, genres, length, diskno, trackno, year, absolutePath);
         }
     }
 

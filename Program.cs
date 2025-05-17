@@ -1,5 +1,6 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.IO;
 using System.Linq;
 
 class Program
@@ -7,19 +8,18 @@ class Program
     private static readonly string DEFAULT_DB_LOCATION = "db";
     private static string dbLocation = DEFAULT_DB_LOCATION; // This can change
 
-    private static readonly string[] COMMANDS = ["init", "add", "remove", "prune"];
-
     private static bool flagPruneAfterRemoving = false;
 
     private static void Usage()
     {
-        Console.WriteLine("Usage: [ADD PROGRAM NAME HERE] [command] [flags] [args]");
+        Console.WriteLine("Usage: [ADD PROGRAM NAME HERE] [command] [flags] [files]");
         Console.WriteLine("\nWhere [command] can be:");
+        Console.WriteLine("\tinit\n\tadd\n\tremove\n\tprune");
 
-        foreach (string cmd in COMMANDS)
-        {
-            Console.WriteLine("\t{0}", cmd);
-        }
+        Console.WriteLine("\nFlags:");
+        Console.WriteLine("\t-o [output_file] | --output [output_file]\tWrite database to output_file");
+        Console.WriteLine("\t-p | --prune \t\t\t\t\tRun prune after removing files.");
+
 
         Console.WriteLine("For help with a specific function, add the --help/-h flag after [command]");
     }
@@ -33,18 +33,15 @@ class Program
 
     private static void Init(string[] files)
     {
-        //try 
-        //{
+        try 
+        {
             var dbg = DatabaseGenerator.GetWithInit(dbLocation);
             dbg.ProcessFiles(files);
-        //} 
-        /*catch(System.Data.SQLite.SQLiteException e)
+        } 
+        catch(IOException ex)
         {
-            if(e.ErrorCode == 1) // "Table already exists" returns error code of 1
-                Console.WriteLine("[ERR ] An error occured. Are you trying to add to an existing database? Use the add option instead of init.");
-            else
-                Console.WriteLine("[ERR ] An unknown error occured. This may be a good time to make an issue at https://github.com/bw-lamb/AudioDBTools");
-        }*/
+            Console.WriteLine(ex.Message);
+        }
     }
 
     private static void HelpAdd()
@@ -59,11 +56,15 @@ class Program
         try
         {
             var dbg = DatabaseGenerator.GetWithoutInit(dbLocation);
-            dbg.ProcessFiles(files); 
+            dbg.ProcessFiles(files);
         }
-        catch
+        catch (FileNotFoundException ex)
         {
-            Console.WriteLine("[ERR ] An unknown error occured. This may be a good time to make an issue at https://github.com/bw-lamb/AudioDBTools");
+            Console.WriteLine(ex.Message);
+        }
+        catch (IOException ex)
+        {
+            Console.WriteLine(ex.Message);
         }
     }
 
@@ -81,28 +82,36 @@ class Program
             var dbg = DatabaseGenerator.GetWithoutInit(dbLocation);
             dbg.RemoveFiles(files);
         }
-        catch
+        catch (FileNotFoundException ex)
         {
-            Console.WriteLine("[ERR ] An unknown error occured. This may be a good time to make an issue at https://github.com/bw-lamb/AudioDBTools");
+            Console.WriteLine(ex.Message);
+        }
+        catch (IOException ex)
+        {
+            Console.WriteLine(ex.Message);
         }
     }
 
     private static void HelpPrune()
     {
-        Console.WriteLine("Usage: [ADD PROGRAM NAME HERE] prune [flags]");
+        Console.WriteLine("Usage: [ADD PROGRAM NAME HERE] prune");
     }
 
     private static void Prune()
     {
-        //try
-        //{
+        try
+        {
             var dbg = DatabaseGenerator.GetWithoutInit(dbLocation);
             dbg.PruneDB();
-        /*}
-        catch
+        }
+        catch (FileNotFoundException ex)
         {
-            Console.WriteLine("[ERR ] An unknown error occured. This may be a good time to make an issue at https://github.com/bw-lamb/AudioDBTools");
-        }*/
+            Console.WriteLine(ex.Message);
+        }
+        catch (IOException ex)
+        {
+            Console.WriteLine(ex.Message);
+        }
     }
 
     private static void Help(string command)
@@ -124,6 +133,8 @@ class Program
         }
     }
 
+    // Goes through args, processing any flags present.
+    // Returns args without any flag values if successful, or null if something went wrong.
     private static string[]? ParseFlags(string command, string[] args)
     {
         List<string> files = [];
@@ -138,24 +149,25 @@ class Program
                 case "--output" or "-o":
                     if (i + 1 == args.Length)
                     {
-                        System.Console.WriteLine("[ERR ] Flag {0} was last given argument, expected destination.", args[i]);
+                        Console.WriteLine("[ERR ] Flag {0} was last given argument, expected destination.", args[i]);
                         return null;
                     }
                     else
                     {
                         dbLocation = args[i + 1];
+                        i += 1; // Don't process outfile name as a song/playlist
                     }
                     break;
                 case "--prune" or "-p":
                     if (!command.Equals("remove"))
-                        System.Console.WriteLine("[WARN] Pruning flag given, but we are not removing anything. Ignoring");
+                        Console.WriteLine("[WARN] Pruning flag given, but we are not removing anything. Ignoring");
                     else
                         flagPruneAfterRemoving = true;
                     break;
                 default:
                     if (args[i].StartsWith('-'))
                     {
-                        System.Console.WriteLine("[ERR ] Unknown flag {0} given.", args[i]);
+                        Console.WriteLine("[ERR ] Unknown flag {0} given.", args[i]);
                         return null;
                     }
                     else
@@ -188,19 +200,34 @@ class Program
         switch (command)
             {
                 case "init":
+                    if (files.Length == 0)
+                    {
+                        Console.WriteLine("[ERR ] No audio files provided.");
+                        break;
+                    }
                     Init(files);
                     break;
                 case "add":
-                    Add(files); 
+                    if (files.Length == 0)
+                    {
+                        Console.WriteLine("[ERR ] No audio files provided.");
+                        break;
+                    }
+                    Add(files);
                     break;
                 case "remove":
+                    if (files.Length == 0)
+                    {
+                        Console.WriteLine("[ERR ] No audio files provided.");
+                        break;
+                    }
                     Remove(files);
                     if (flagPruneAfterRemoving)
                         Prune();
                     break;
                 case "prune":
-                    if(files.Length != 0)
-                        System.Console.WriteLine("[WARN] Files given while we are pruning. They are being ignored. Use \"remove\" to delete files");
+                    if (files.Length != 0)
+                        Console.WriteLine("[WARN] Files given while we are pruning. They are being ignored. Use \"remove\" to delete files");
                     Prune();
                     break;
                 default:
