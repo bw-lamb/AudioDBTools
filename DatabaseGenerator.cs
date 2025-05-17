@@ -179,16 +179,7 @@ public class DatabaseGenerator
         // SONGS
         if(db.HasSong(absolutePath))
         {
-            
-            if(!db.HasSong(absolutePath))
-            {
-                Console.WriteLine("[WARN] Song {0} with same details already in DB but from another file. Adding duplicate.", title);
-                db.AddSong(title, artists, album, allAlbumArtists, genres, length, diskno, trackno, year, absolutePath);
-            }   
-            else 
-            {
-                Console.WriteLine("[INFO] Song {0} ({1}) already in DB. skipping.", title, filename);
-            }
+            Console.WriteLine("[INFO] Song {0} ({1}) already in DB. skipping.", title, filename);
         }
         else
         {
@@ -200,7 +191,14 @@ public class DatabaseGenerator
 
     public void ProcessPlaylist(string filename)
     {
-        db.AddPlaylist(filename);
+        if(!db.HasPlaylist(filename))
+        {
+            db.AddPlaylist(filename);
+        }
+        else
+        {
+            Console.WriteLine("[ERR ] Playlist from {0} already exists. Ignoring.", filename);
+        }
     }
 
     public void ProcessFiles(string[] files)

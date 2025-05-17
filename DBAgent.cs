@@ -531,6 +531,12 @@ CREATE TABLE playlist_relations (
     {
         string absolutePath = System.IO.Path.GetFullPath(filepath);
 
+        if(!HasSong(absolutePath))
+        {
+            Console.WriteLine("[WARN] Song from file {0} not in DB. Ignoring.", absolutePath);
+            return;
+        }
+
         using (SQLiteConnection conn = new(dbLocation))
         {
             conn.Open();
@@ -575,14 +581,14 @@ CREATE TABLE playlist_relations (
         }
     }
 
-    public bool HasPlaylist(string name)
+    public bool HasPlaylist(string filename)
     {
         using SQLiteConnection conn = new(dbLocation);
         conn.Open();
         using (SQLiteCommand cmd = conn.CreateCommand())
         {
             cmd.CommandText = "SELECT * FROM playlists WHERE playlist_name = $name;";
-            cmd.Parameters.AddWithValue("$name", name);
+            cmd.Parameters.AddWithValue("$name", GetPlaylistName(filename));
 
             using (var result = cmd.ExecuteReader())
             {
@@ -680,6 +686,12 @@ CREATE TABLE playlist_relations (
 
     public void RemovePlaylist(string filename)
     {
+        if(!HasPlaylist(filename))
+        {
+            Console.WriteLine("[WARN] Playlist from file {0} not in DB. Ignoring.", filename);
+            return;
+        }
+
         using (SQLiteConnection conn = new(dbLocation))
         {
             conn.Open();
