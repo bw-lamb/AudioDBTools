@@ -533,7 +533,7 @@ CREATE TABLE playlist_relations (
 
         if(!HasSong(absolutePath))
         {
-            Console.WriteLine("[WARN] Song from file {0} not in DB. Ignoring.", absolutePath);
+            Logger.LogWarn($"Song from file {absolutePath} not in DB. Ignoring.");
             return;
         }
 
@@ -641,11 +641,11 @@ CREATE TABLE playlist_relations (
     {
         if(HasPlaylist(name))
         {
-            Console.WriteLine("[ERR ] Playlist {0} already exists. Skipping", name);
+            Logger.LogError($"Playlist {name} already exists. Skipping");
             return;
         }
 
-        Console.WriteLine("[INFO] Making new playlist from {0}.", name);
+        Logger.LogInfo($"Making new playlist from {name}.");
         string playlistName = GetPlaylistName(name);
 
         using (SQLiteConnection conn = new(dbLocation))
@@ -679,7 +679,7 @@ CREATE TABLE playlist_relations (
                         cmd.ExecuteNonQuery();
                     }
                 }
-                Console.WriteLine("[INFO] Added song at {0} to playlist {1}", line, playlistName);
+                Logger.LogInfo($"Added song at {line} to playlist {playlistName}");
             }
         }
     }
@@ -688,7 +688,7 @@ CREATE TABLE playlist_relations (
     {
         if(!HasPlaylist(filename))
         {
-            Console.WriteLine("[WARN] Playlist from file {0} not in DB. Ignoring.", filename);
+            Logger.LogWarn($"Playlist from file {filename} not in DB. Ignoring.");
             return;
         }
 
