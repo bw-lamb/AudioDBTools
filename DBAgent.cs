@@ -679,7 +679,11 @@ CREATE TABLE playlist_relations (
                         cmd.ExecuteNonQuery();
                     }
                 }
-                Console.WriteLine("[INFO] Added song at {0} to playlist {1}", line, playlistName);
+                Logger.LogInfo(string.Format("Added song at {0} to playlist {1}", line, playlistName));
+            }
+            else
+            {
+                Logger.LogError($"Cannot find song {absolutePath} to add to {playlistName}");
             }
         }
     }
