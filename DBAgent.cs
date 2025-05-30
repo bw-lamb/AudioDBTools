@@ -637,7 +637,7 @@ CREATE TABLE playlist_relations (
         return result;
     }
 
-    public void AddPlaylist(string name)
+    public void AddPlaylist(string name, bool arduinoMode)
     {
         if(HasPlaylist(name))
         {
@@ -663,7 +663,11 @@ CREATE TABLE playlist_relations (
         var lines = System.IO.File.ReadAllLines(name);
         foreach(string line in lines)
         {
-            string absolutePath = System.IO.Path.GetFullPath(line);
+            string absolutePath;
+            if (arduinoMode)
+                absolutePath = PathConverter.ToArduinoPath(line);
+            else
+                absolutePath = System.IO.Path.GetFullPath(line);
             if(HasSong(absolutePath))
             {
                 uint songId = GetSongId(absolutePath);

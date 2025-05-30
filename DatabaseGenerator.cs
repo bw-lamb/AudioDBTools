@@ -9,13 +9,14 @@ public class DatabaseGenerator
     private static readonly string[] ACCEPTED_EXTENSIONS = ["mp3", "m4a", "flac"];
     private static readonly string PLAYLIST_EXTENSION = "m3u";
     private readonly DBAgent db;
+    private readonly bool arduinoMode;
     private uint songsAffected;
     private uint artistsAffected;
     private uint albumsAffected;
     private uint genresAffected;
     private uint playlistsAffected;
-   
-    private DatabaseGenerator(string dbFilepath)
+
+    private DatabaseGenerator(string dbFilepath, bool arduinoMode)
     {
         db = new DBAgent(dbFilepath);
         songsAffected = 0;
@@ -23,10 +24,11 @@ public class DatabaseGenerator
         albumsAffected = 0;
         genresAffected = 0;
         playlistsAffected = 0;
+        this.arduinoMode = arduinoMode;
     }
 
     // Create and get a handle on a database.
-    public static DatabaseGenerator GetWithInit(string dbFilepath)
+    public static DatabaseGenerator GetWithInit(string dbFilepath, bool arduinoMode)
     {
         if (File.Exists(dbFilepath))
         {
@@ -41,13 +43,13 @@ public class DatabaseGenerator
             }
             throw new IOException(msg);
         }
-        DatabaseGenerator dbg = new DatabaseGenerator(dbFilepath);
+        DatabaseGenerator dbg = new DatabaseGenerator(dbFilepath, arduinoMode);
         dbg.db.InitDB();
         return dbg;
     }
 
     // Get a handle on an existing database.
-    public static DatabaseGenerator GetWithoutInit(string dbFilepath)
+    public static DatabaseGenerator GetWithoutInit(string dbFilepath, bool arduinoMode)
     {
         if (!File.Exists(dbFilepath))
         {
@@ -59,7 +61,7 @@ public class DatabaseGenerator
             throw new IOException(string.Format("File {0} is not an SQLite 3 database.", dbFilepath));
         }
 
-        DatabaseGenerator dbg = new DatabaseGenerator(dbFilepath);
+        DatabaseGenerator dbg = new DatabaseGenerator(dbFilepath, arduinoMode);
         return dbg;
     }
 
@@ -187,7 +189,11 @@ public class DatabaseGenerator
             albumsAffected++;
         }
 
-        string absolutePath = System.IO.Path.GetFullPath(filename);
+        string absolutePath;
+        if (arduinoMode)
+            absolutePath = PathConverter.ToArduinoPath(filename);
+        else
+            absolutePath = System.IO.Path.GetFullPath(filename);
 
         // SONGS
         if(db.HasSong(absolutePath))
@@ -207,7 +213,7 @@ public class DatabaseGenerator
     {
         if(!db.HasPlaylist(filename))
         {
-            db.AddPlaylist(filename);
+            db.AddPlaylist(filename, arduinoMode);
             playlistsAffected++;
         }
         else
