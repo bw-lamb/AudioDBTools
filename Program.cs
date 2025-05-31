@@ -7,8 +7,8 @@ class Program
 {
     private static readonly string DEFAULT_DB_LOCATION = "db";
     private static string dbLocation = DEFAULT_DB_LOCATION; // This can change
-
     private static bool flagPruneAfterRemoving = false;
+    private static bool arduinoMode = false;
 
     private static void Usage()
     {
@@ -20,7 +20,7 @@ class Program
         Console.WriteLine("\t-o [output_file] | --output [output_file]\tWrite database to output_file");
         Console.WriteLine("\t-p | --prune\t\t\t\t\tRun prune after removing files.");
         Console.WriteLine("\t-q | --quiet\t\t\t\t\tSuppress output");
-
+        Console.WriteLine("\t-a | --arduino\t\t\t\tArduino mode [WORK IN PROGRESS]");
 
         Console.WriteLine("For help with a specific function, add the --help/-h flag after [command]");
     }
@@ -36,7 +36,7 @@ class Program
     {
         try 
         {
-            var dbg = DatabaseGenerator.GetWithInit(dbLocation);
+            var dbg = DatabaseGenerator.GetWithInit(dbLocation, arduinoMode);
             dbg.ProcessFiles(files);
         } 
         catch(IOException ex)
@@ -56,7 +56,7 @@ class Program
     {
         try
         {
-            var dbg = DatabaseGenerator.GetWithoutInit(dbLocation);
+            var dbg = DatabaseGenerator.GetWithoutInit(dbLocation, arduinoMode);
             dbg.ProcessFiles(files);
         }
         catch (FileNotFoundException ex)
@@ -80,7 +80,7 @@ class Program
     {
         try
         {
-            var dbg = DatabaseGenerator.GetWithoutInit(dbLocation);
+            var dbg = DatabaseGenerator.GetWithoutInit(dbLocation, arduinoMode);
             dbg.RemoveFiles(files, prune);
         }
         catch (FileNotFoundException ex)
@@ -102,7 +102,7 @@ class Program
     {
         try
         {
-            var dbg = DatabaseGenerator.GetWithoutInit(dbLocation);
+            var dbg = DatabaseGenerator.GetWithoutInit(dbLocation, arduinoMode);
             dbg.PruneDB();
         }
         catch (FileNotFoundException ex)
@@ -167,6 +167,9 @@ class Program
                     break;
                 case "--quiet" or "-q":
                     Logger.SetSilent(true);
+                    break;
+                case "--arduino" or "-a":
+                    arduinoMode = true;
                     break;
                 default:
                     if (args[i].StartsWith('-'))
