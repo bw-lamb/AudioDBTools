@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Data.SQLite;
+using System.Linq;
 class DBAgent
 {
     private readonly string dbLocation;
@@ -621,20 +622,23 @@ CREATE TABLE playlist_relations (
             return 0;
     }
 
-    private static string GetPlaylistName(string filename)
+    private static string GetPlaylistName(string filepath)
     {
-        string[] split = filename.Split('.');
-        string extn = split[split.Length - 1];
+        string filename = filepath.Split(System.IO.Path.DirectorySeparatorChar).TakeLast(1).ToArray()[0];
+        var split = filename.Split('.').SkipLast(1); // Skip the extension
 
-        string result = "";
+        return string.Join('.', split);
+    }
 
-        foreach(string part in split)
-        {
-            if(!part.Equals(extn))
-                result += part;
-        }
+    private static string GetPlaylistDirectory(string filepath)
+    {
+        string[] split = filepath.Split(System.IO.Path.DirectorySeparatorChar);
+        var directory = split.SkipLast(1);
 
-        return result;
+        if (!directory.Any())
+            return "";
+
+        return String.Join(System.IO.Path.DirectorySeparatorChar, directory);
     }
 
     public void AddPlaylist(string name, bool arduinoMode)
@@ -647,6 +651,7 @@ CREATE TABLE playlist_relations (
 
         Logger.LogInfo($"Making new playlist from {name}.");
         string playlistName = GetPlaylistName(name);
+        string playlistDir = GetPlaylistDirectory(name);
 
         using (SQLiteConnection conn = new(dbLocation))
         {
@@ -667,8 +672,8 @@ CREATE TABLE playlist_relations (
             if (arduinoMode)
                 absolutePath = PathConverter.ToArduinoPath(line);
             else
-                absolutePath = System.IO.Path.GetFullPath(line);
-            if(HasSong(absolutePath))
+                absolutePath = System.Environment.CurrentDirectory + System.IO.Path.DirectorySeparatorChar + playlistDir + System.IO.Path.DirectorySeparatorChar + line;
+            if (HasSong(absolutePath))
             {
                 uint songId = GetSongId(absolutePath);
 
