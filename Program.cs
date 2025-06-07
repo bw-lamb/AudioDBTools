@@ -59,13 +59,10 @@ class Program
             var dbg = DatabaseGenerator.GetWithoutInit(dbLocation, arduinoMode);
             dbg.ProcessFiles(files);
         }
-        catch (FileNotFoundException ex)
+        catch (Exception ex)
+        when(ex is FileNotFoundException || ex is IOException)
         {
-            Logger.LogCritical(ex.Message);
-        }
-        catch (IOException ex)
-        {
-            Logger.LogCritical(ex.Message);
+            Logger.LogCritical(ex.Message);    
         }
     }
 
@@ -80,16 +77,13 @@ class Program
     {
         try
         {
-            var dbg = DatabaseGenerator.GetWithoutInit(dbLocation, arduinoMode);
+            DatabaseGenerator dbg = DatabaseGenerator.GetWithoutInit(dbLocation, arduinoMode);
             dbg.RemoveFiles(files, prune);
         }
-        catch (FileNotFoundException ex)
+        catch (Exception ex)
+        when(ex is FileNotFoundException || ex is IOException)
         {
-            Logger.LogCritical(ex.Message);
-        }
-        catch (IOException ex)
-        {
-            Logger.LogCritical(ex.Message);
+            Logger.LogCritical(ex.Message); 
         }
     }
 
@@ -102,7 +96,7 @@ class Program
     {
         try
         {
-            var dbg = DatabaseGenerator.GetWithoutInit(dbLocation, arduinoMode);
+            DatabaseGenerator dbg = DatabaseGenerator.GetWithoutInit(dbLocation, arduinoMode);
             dbg.PruneDB();
         }
         catch (FileNotFoundException ex)
@@ -150,7 +144,7 @@ class Program
                 case "--output" or "-o":
                     if (i + 1 == args.Length)
                     {
-                        Logger.LogError(string.Format("Flag {0} was last given argument, expected destination.", args[i]));
+                        Logger.LogError($"Flag {args[i]} was last given argument, expected destination.");
                         return null;
                     }
                     else
@@ -174,7 +168,7 @@ class Program
                 default:
                     if (args[i].StartsWith('-'))
                     {
-                        Logger.LogError(string.Format("Unknown flag {0} given.", args[i]));
+                        Logger.LogError($"Unknown flag {args[i]} given.");
                         return null;
                     }
                     else
@@ -199,7 +193,7 @@ class Program
         
         string[]? files = ParseFlags(command, args.Skip(1).ToArray());
 
-        if (files == null) // We've seen an error in parsing flags
+        if (files is null) // We've seen an error in parsing flags
         {
             Logger.Stop();
             return;
@@ -237,7 +231,7 @@ class Program
                     Prune();
                     break;
                 default:
-                    Logger.LogError(string.Format("Unknown function \"{0}\"", command));
+                    Logger.LogError($"Unknown function \"{command}\"");
                     Usage();
                     break;
             }
