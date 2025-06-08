@@ -211,9 +211,33 @@ public class DatabaseGenerator
 
     public void ProcessPlaylist(string filename)
     {
+        string playlistName = FileFunctions.GetFileName(filename);
+        string playlistDir = FileFunctions.GetFileDirectory(filename);
+        
         if(!db.HasPlaylist(filename))
         {
-            db.AddPlaylist(filename, arduinoMode);
+            string[] songs = System.IO.File.ReadAllLines(filename);
+            for(int i = 0; i < songs.Length; i++)
+            {
+                if (arduinoMode)
+                    songs[i] = PathConverter.ToArduinoPath(playlistDir + '/' + songs[i]);
+                else
+                {
+                    string cwd = System.Environment.CurrentDirectory;
+                    char sep = System.IO.Path.DirectorySeparatorChar;
+
+                    if (FileFunctions.PathIsAbsolute(songs[i]))
+                        continue;
+                    else if (!playlistDir.Equals(""))
+                        //song = System.Environment.CurrentDirectory + System.IO.Path.DirectorySeparatorChar + playlistDir + System.IO.Path.DirectorySeparatorChar + line;
+                        songs[i] = string.Join(sep, [cwd, playlistDir, songs[i]]);
+                    else
+                        //song = System.Environment.CurrentDirectory + System.IO.Path.DirectorySeparatorChar + line;\
+                        songs[i] = string.Join(sep, [cwd, songs[i]]);
+                }
+            }
+
+            db.AddPlaylist(playlistName, playlistDir, songs);
             playlistsAffected++;
         }
         else

@@ -589,7 +589,7 @@ CREATE TABLE playlist_relations (
         using (SQLiteCommand cmd = conn.CreateCommand())
         {
             cmd.CommandText = "SELECT * FROM playlists WHERE playlist_name = $name;";
-            cmd.Parameters.AddWithValue("$name", GetPlaylistName(filename));
+            cmd.Parameters.AddWithValue("$name", FileFunctions.GetFileName(filename));
 
             using (var result = cmd.ExecuteReader())
             {
@@ -622,36 +622,15 @@ CREATE TABLE playlist_relations (
             return 0;
     }
 
-    private static string GetPlaylistName(string filepath)
+    public void AddPlaylist(string playlistName, string playlistDir, string[] songs)
     {
-        string filename = filepath.Split(System.IO.Path.DirectorySeparatorChar).TakeLast(1).ElementAt(0);
-        var split = filename.Split('.').SkipLast(1); // Skip the extension
-
-        return string.Join('.', split);
-    }
-
-    private static string GetPlaylistDirectory(string filepath)
-    {
-        string[] split = filepath.Split(System.IO.Path.DirectorySeparatorChar);
-        var directory = split.SkipLast(1);
-
-        if (!directory.Any())
-            return "";
-
-        return String.Join(System.IO.Path.DirectorySeparatorChar, directory);
-    }
-
-    public void AddPlaylist(string name, bool arduinoMode)
-    {
-        if(HasPlaylist(name))
+        if(HasPlaylist(playlistName))
         {
-            Logger.LogError($"Playlist {name} already exists. Skipping");
+            Logger.LogError($"Playlist {playlistName} already exists. Skipping");
             return;
         }
 
-        Logger.LogInfo($"Making new playlist from {name}.");
-        string playlistName = GetPlaylistName(name);
-        string playlistDir = GetPlaylistDirectory(name);
+        Logger.LogInfo($"Making new playlist from {playlistName}.");
 
         using (SQLiteConnection conn = new(dbLocation))
         {
@@ -665,25 +644,11 @@ CREATE TABLE playlist_relations (
         }
         uint playlistId = GetPlaylistId(playlistName);
 
-        var lines = System.IO.File.ReadAllLines(name);
-        foreach(string line in lines)
+        foreach(string song in songs)
         {
-            string absolutePath;
-            if (arduinoMode)
-                absolutePath = PathConverter.ToArduinoPath(playlistDir + '/' + line);
-            else
+            if (HasSong(song))
             {
-                if (line.Equals(System.IO.Path.GetFullPath(line)))
-                    absolutePath = line;
-                else if (!playlistDir.Equals(""))
-                    absolutePath = System.Environment.CurrentDirectory + System.IO.Path.DirectorySeparatorChar + playlistDir + System.IO.Path.DirectorySeparatorChar + line;
-                else
-                    absolutePath = System.Environment.CurrentDirectory + System.IO.Path.DirectorySeparatorChar + line;
-            }
-
-            if (HasSong(absolutePath))
-            {
-                uint songId = GetSongId(absolutePath);
+                uint songId = GetSongId(song);
 
                 using (SQLiteConnection conn = new(dbLocation))
                 {
@@ -696,11 +661,11 @@ CREATE TABLE playlist_relations (
                         cmd.ExecuteNonQuery();
                     }
                 }
-                Logger.LogInfo(string.Format("Added song at {0} to playlist {1}", line, playlistName));
+                Logger.LogInfo(string.Format("Added song at {0} to playlist {1}", song, playlistName));
             }
             else
             {
-                Logger.LogError($"Cannot find song {absolutePath} to add to {playlistName}");
+                Logger.LogError($"Cannot find song {song} to add to {playlistName}");
             }
         }
     }
@@ -719,7 +684,7 @@ CREATE TABLE playlist_relations (
             using (SQLiteCommand cmd = conn.CreateCommand())
             {
                 cmd.CommandText = "DELETE FROM playlist_relations WHERE playlist_id = $pid;";
-                cmd.Parameters.AddWithValue("$pid", GetPlaylistId(GetPlaylistName(filename)));
+                cmd.Parameters.AddWithValue("$pid", GetPlaylistId(FileFunctions.GetFileName(filename)));
                 cmd.ExecuteNonQuery();
             }
         }
@@ -730,7 +695,7 @@ CREATE TABLE playlist_relations (
             using (SQLiteCommand cmd = conn.CreateCommand())
             {
                 cmd.CommandText = "DELETE FROM playlists WHERE playlist_name = $name;";
-                cmd.Parameters.AddWithValue("$name", GetPlaylistName(filename));
+                cmd.Parameters.AddWithValue("$name", FileFunctions.GetFileName(filename));
                 cmd.ExecuteNonQuery();
             }
         }

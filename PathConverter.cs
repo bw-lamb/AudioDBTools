@@ -11,7 +11,7 @@ class PathConverter
             throw new System.IO.IOException("Path given may not be a child of the curent directory (it uses the \'..\' directory)");
         }
 
-        if (PathIsAbsolute(path))
+        if (FileFunctions.PathIsAbsolute(path))
         {
             int prefix = System.Environment.CurrentDirectory.Length;
             path = path.Substring(prefix + 1); // CurrentDirectory doesn't include a trailing slash
@@ -45,10 +45,5 @@ class PathConverter
         }
 
         return false;
-    }
-
-    private static bool PathIsAbsolute(string path)
-    {
-        return path.Equals(System.IO.Path.GetFullPath(path));
     }
 }
