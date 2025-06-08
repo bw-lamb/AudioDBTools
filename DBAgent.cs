@@ -624,7 +624,7 @@ CREATE TABLE playlist_relations (
 
     private static string GetPlaylistName(string filepath)
     {
-        string filename = filepath.Split(System.IO.Path.DirectorySeparatorChar).TakeLast(1).ToArray()[0];
+        string filename = filepath.Split(System.IO.Path.DirectorySeparatorChar).TakeLast(1).ElementAt(0);
         var split = filename.Split('.').SkipLast(1); // Skip the extension
 
         return string.Join('.', split);
@@ -670,9 +670,17 @@ CREATE TABLE playlist_relations (
         {
             string absolutePath;
             if (arduinoMode)
-                absolutePath = PathConverter.ToArduinoPath(line);
+                absolutePath = PathConverter.ToArduinoPath(playlistDir + '/' + line);
             else
-                absolutePath = System.Environment.CurrentDirectory + System.IO.Path.DirectorySeparatorChar + playlistDir + System.IO.Path.DirectorySeparatorChar + line;
+            {
+                if (line.Equals(System.IO.Path.GetFullPath(line)))
+                    absolutePath = line;
+                else if (!playlistDir.Equals(""))
+                    absolutePath = System.Environment.CurrentDirectory + System.IO.Path.DirectorySeparatorChar + playlistDir + System.IO.Path.DirectorySeparatorChar + line;
+                else
+                    absolutePath = System.Environment.CurrentDirectory + System.IO.Path.DirectorySeparatorChar + line;
+            }
+
             if (HasSong(absolutePath))
             {
                 uint songId = GetSongId(absolutePath);
